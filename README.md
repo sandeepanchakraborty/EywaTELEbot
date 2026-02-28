@@ -6,9 +6,10 @@ A smart Telegram bot that summarizes YouTube videos and answers questions about 
 
 ## 📸 Example Screenshots
 
-> _(Add screenshots here after running the bot)_
-
----
+Screenshot 2025-07-21 232231.png
+Screenshot 2026-02-28 212958.png
+Screenshot 2026-02-28 213024.png
+Screenshot 2026-02-28 213045.png
 
 ## ✨ Features
 
