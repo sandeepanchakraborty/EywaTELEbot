@@ -1,0 +1,8 @@
+# Core
+python-telegram-bot==21.3
+openai
+youtube-transcript-api==1.2.4
+python-dotenv==1.0.1
+
+# Utilities
+requests==2.32.3
