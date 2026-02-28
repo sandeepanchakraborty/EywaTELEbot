@@ -5,7 +5,6 @@ A smart Telegram bot that summarizes YouTube videos and answers questions about 
 ---
 
 ## 📸 Example<img width="958" height="533" alt="Screenshot 2025-07-21 232231" src="https://github.com/user-attachments/assets/14929a40-3ee9-4594-af3b-f1fdb88e62a6" />
- Screenshots
 <img width="904" height="578" alt="Screenshot 2026-02-28 212958" src="https://github.com/user-attachments/assets/447d0d62-e082-4ebc-8c5b-b56d854804e7" />
 <img width="955" height="469" alt="Screenshot 2026-02-28 213024" src="https://github.com/user-attachments/assets/63ef35f8-4e58-490f-929b-a7012ad211f2" />
 <img width="959" height="614" alt="Screenshot 2026-02-28 213045" src="https://github.com/user-attachments/assets/613378db-9f41-4b11-b88a-f4ad67d32fd9" />
