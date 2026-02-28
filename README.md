@@ -1,6 +1,6 @@
 # 🎥 YouTube AI Telegram Bot
 
-A smart Telegram bot that summarizes YouTube videos and answers questions about them — powered by **Groq AI**. Supports English, Hindi, Kannada, Tamil, Telugu, and Marathi.
+A smart Telegram bot that summarizes YouTube videos and answers questions about them — powered by a **dual AI fallback system**: OpenClaw local gateway (primary) and Groq cloud API (fallback). Supports English, Hindi, Kannada, Tamil, Telugu, and Marathi.
 
 ---
 
@@ -34,6 +34,7 @@ A smart Telegram bot that summarizes YouTube videos and answers questions about 
 - Python 3.10 or higher
 - A Telegram account
 - A [Groq](https://console.groq.com) account (free tier available)
+- *(Optional)* [OpenClaw](https://openclaw.ai) local gateway running on your machine — used as the primary AI endpoint. If not set up, the bot falls back to Groq automatically.
 
 ---
 
@@ -55,6 +56,22 @@ A smart Telegram bot that summarizes YouTube videos and answers questions about 
 
 ---
 
+### Step 2b — (Optional) Set Up OpenClaw Local Gateway
+
+OpenClaw is a local AI gateway that proxies requests to Groq internally. It is the **primary** AI provider. Groq direct is used only as a fallback.
+
+1. Install and run the OpenClaw gateway on your machine — it listens on `http://127.0.0.1:18789/v1` by default
+2. Get your OpenClaw API key from your OpenClaw dashboard
+3. If OpenClaw is **not** set up, the bot works fine — it will use Groq directly
+
+> **How the fallback works:**
+> 1. Bot sends request to OpenClaw gateway first
+> 2. If OpenClaw is unreachable, rate-limited, or returns an error → automatically retries up to 3 times
+> 3. If still failing → silently switches to Groq direct
+> 4. Users never see an error — the switch is completely transparent
+
+---
+
 ### Step 3 — Clone & Configure
 
 ```bash
@@ -70,8 +87,19 @@ Edit `.env` and fill in your keys:
 
 ```env
 TELEGRAM_BOT_TOKEN=your_telegram_bot_token_here
+
+# OpenClaw local gateway (primary — optional but recommended)
+OPENCLAW_BASE_URL=http://127.0.0.1:18789/v1
+OPENCLAW_API_KEY=your_openclaw_api_key_here
+OPENCLAW_MODEL=openclaw
+
+# Groq direct (fallback — required)
 GROQ_API_KEY=your_gsk_key_here
+GROQ_BASE_URL=https://api.groq.com/openai/v1
+GROQ_MODEL=llama-3.3-70b-versatile
 ```
+
+> **Note:** `OPENCLAW_API_KEY` is optional. If left empty, the bot skips OpenClaw entirely and uses Groq directly. `GROQ_API_KEY` is always required as the fallback.
 
 ---
 
@@ -194,6 +222,27 @@ bot/
     └── transcript_cache.py     # LRU + TTL cache for transcripts
 ```
 
+### AI Request Flow
+
+```
+User Message
+     │
+     ▼
+┌─────────────────────┐
+│  OpenClaw Gateway   │  ← Primary (local, http://127.0.0.1:18789/v1)
+│  (up to 3 retries)  │
+└─────────────────────┘
+     │ failure / rate-limit
+     ▼
+┌─────────────────────┐
+│    Groq Direct      │  ← Fallback (cloud, api.groq.com)
+│  (up to 3 retries)  │
+└─────────────────────┘
+     │
+     ▼
+  Response sent to user
+```
+
 ### Architectural Decisions
 
 #### 1. In-Memory Session Management
@@ -222,14 +271,27 @@ Long transcripts (>15,000 characters) are truncated for the model's context wind
 
 **Trade-off:** The tail of very long videos may not be summarized. A future improvement would be map-reduce summarization across all chunks.
 
-#### 4. Groq AI API
+#### 4. Dual LLM Fallback — OpenClaw + Groq
 
-Chosen for:
+**OpenClaw (Primary):**
+- Runs locally at `http://127.0.0.1:18789/v1`
+- Acts as a gateway/proxy — routes to Groq internally via its own config
+- Adds a local caching/routing layer on top of Groq
+- Uses the `openclaw` model identifier
+- Completely optional — if `OPENCLAW_API_KEY` is not set, it is skipped
 
+**Groq (Fallback):**
+- Cloud API at `https://api.groq.com/openai/v1`
 - Free tier with fast inference
 - OpenAI-compatible API (no vendor lock-in)
-- Multilingual capability via Llama 3.3 70B
-- Low latency (hardware-optimized)
+- Multilingual capability via `llama-3.3-70b-versatile`
+- Always required as the safety net
+
+**Retry logic (in `services/gemini_service.py`):**
+- OpenClaw: up to 3 attempts with 3s / 6s backoff
+- Also detects rate-limit signals *inside* the response body (not just HTTP status codes)
+- Groq: same retry logic independently
+- Both clients use the `openai` Python SDK since both are OpenAI-API-compatible
 
 #### 5. Grounded Q&A
 
@@ -276,22 +338,26 @@ To deploy publicly (so the bot runs 24/7):
 | Non-English transcript          | Auto-translated to English via API if possible     |
 | Very long video                 | Truncated to 30K chars with user notification      |
 | Q&A with no video loaded        | Prompts user to send a URL first                   |
-| Groq API failure                | Graceful error with retry suggestion               |
+| OpenClaw unavailable            | Automatically falls back to Groq direct            |
+| Groq API failure                | Graceful error with retry suggestion after 3 attempts |
 | Multiple users simultaneously   | Independent sessions via `user_id` key             |
 
 ---
 
 ## 🔧 Configuration
 
-| Variable                  | Default                          | Description                             |
-| ------------------------- | -------------------------------- | --------------------------------------- |
-| `TELEGRAM_BOT_TOKEN`      | —                                | Required. From BotFather.               |
-| `GROQ_API_KEY`            | —                                | Required. From console.groq.com.        |
-| `GROQ_BASE_URL`           | `https://api.groq.com/openai/v1` | Groq API endpoint                       |
-| `GROQ_MODEL`              | `llama-3.3-70b-versatile`        | Groq model to use                       |
-| `CACHE_MAX_SIZE`          | `50`                             | Max number of cached transcripts        |
-| `CACHE_TTL_HOURS`         | `24`                             | Hours before cache entry expires        |
-| `SESSION_TIMEOUT_MINUTES` | `60`                             | Minutes before inactive session expires |
+| Variable                  | Default                          | Required | Description                                                  |
+| ------------------------- | -------------------------------- | -------- | ------------------------------------------------------------ |
+| `TELEGRAM_BOT_TOKEN`      | —                                | ✅ Yes   | From BotFather on Telegram                                   |
+| `OPENCLAW_BASE_URL`       | `http://127.0.0.1:18789/v1`      | ❌ No    | OpenClaw local gateway URL                                   |
+| `OPENCLAW_API_KEY`        | —                                | ❌ No    | OpenClaw API key — if empty, OpenClaw is skipped entirely    |
+| `OPENCLAW_MODEL`          | `openclaw`                       | ❌ No    | Model name for the OpenClaw gateway                          |
+| `GROQ_API_KEY`            | —                                | ✅ Yes   | From console.groq.com — used as fallback (and primary if no OpenClaw) |
+| `GROQ_BASE_URL`           | `https://api.groq.com/openai/v1` | ❌ No    | Groq API endpoint                                            |
+| `GROQ_MODEL`              | `llama-3.3-70b-versatile`        | ❌ No    | Groq model to use                                            |
+| `CACHE_MAX_SIZE`          | `50`                             | ❌ No    | Max number of cached transcripts                             |
+| `CACHE_TTL_HOURS`         | `24`                             | ❌ No    | Hours before cache entry expires                             |
+| `SESSION_TIMEOUT_MINUTES` | `60`                             | ❌ No    | Minutes before inactive session expires                      |
 
 ---
 
