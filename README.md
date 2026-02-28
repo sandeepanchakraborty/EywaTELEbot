@@ -5,11 +5,7 @@ A smart Telegram bot that summarizes YouTube videos and answers questions about 
 ---
 
 ## 📸 Example Screenshots
-
-Screenshot 2025-07-21 232231.png
-Screenshot 2026-02-28 212958.png
-Screenshot 2026-02-28 213024.png
-Screenshot 2026-02-28 213045.png
+https://github.com/sandeepanchakraborty/EywaTELEbot/blob/master/Screenshot%202025-07-21%20232231.png
 
 ## ✨ Features
 
